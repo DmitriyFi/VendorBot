@@ -44,7 +44,7 @@ async def cmd_stuff(message: Message, state: FSMContext):
 
 
 # Выход из машины состояний
-@router.message(Command(commands=['cancel']), state=Purchase or Shipping)
+@router.message(Command(commands=['cancel']), state=[Purchase, Shipping])
 async def cancel_purchase(message: Message, state: FSMContext):
     await message.answer('[INFO] Покупка отменена')
     await state.clear()
@@ -59,7 +59,7 @@ async def select_item(callback: CallbackQuery, state: FSMContext):
 
     choice = await choose_item(callback.data.replace('buy:', ''))
     item_id, item_photo, item_name = choice[0], choice[1], choice[2]
-    await state.update_data(item_id=item_id)
+    await state.update_data(product_id=item_id)
     await callback.message.answer_photo(photo=item_photo,
                                         caption=f'Какое количество товара "{item_name}" Вам необходимо?\n'
                                                 f'выйти без изменений /cancel')
@@ -68,7 +68,6 @@ async def select_item(callback: CallbackQuery, state: FSMContext):
 
 @router.message(state=Purchase.count)
 async def ask_quantity_items(message: Message, state: FSMContext):
-    print(message.text)
     try:
         if isinstance(int(message.text), int) and int(message.text) > 0:
             item_count = int(message.text)
