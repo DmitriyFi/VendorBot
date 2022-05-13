@@ -56,7 +56,7 @@ async def callbacks_admin_delete(callback: CallbackQuery):
 
 
 # Выход из машины состояний
-@router.message(Command(commands=['cancel'], state=NewItem))
+@router.message(Command(commands=['cancel']), state=NewItem)
 async def cancel_moderation(message: Message, state: FSMContext):
     await message.answer('[INFO] Вы отменили создание товара')
     await state.clear()

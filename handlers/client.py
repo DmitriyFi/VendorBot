@@ -44,7 +44,7 @@ async def cmd_stuff(message: Message, state: FSMContext):
 
 
 # Выход из машины состояний
-@router.message(Command(commands=['cancel'], state=Purchase or Shipping))
+@router.message(Command(commands=['cancel']), state=Purchase or Shipping)
 async def cancel_purchase(message: Message, state: FSMContext):
     await message.answer('[INFO] Покупка отменена')
     await state.clear()
@@ -66,7 +66,7 @@ async def select_item(callback: CallbackQuery, state: FSMContext):
     await state.set_state(Purchase.count)
 
 
-@router.message(Purchase.count)
+@router.message(state=Purchase.count)
 async def ask_quantity_items(message: Message, state: FSMContext):
     print(message.text)
     try:
@@ -88,14 +88,14 @@ async def ask_quantity_items(message: Message, state: FSMContext):
         await state.set_state(Purchase.order_id)
 
 
-@router.message(Purchase.order_id, Text(text='Нет'), Purchase.order_id)
+@router.message(Text(text='Нет'), state=Purchase.order_id)
 async def no_more_items(message: Message, state: FSMContext):
     await state.clear()
     await message.answer('Введите Ваше ФИО\nили нажмите -> /cancel')
     await state.set_state(Shipping.id)
 
 
-@router.message(Purchase.order_id, Text(text='Да'))
+@router.message(Text(text='Да'), state=Purchase.order_id)
 async def more_items(message: Message, state: FSMContext):
     await state.set_state(Purchase.product_id)
     await get_store(message)
@@ -121,7 +121,7 @@ async def ask_customers_phone(message: Message, state: FSMContext):
     await state.set_state(Shipping.address)
 
 
-@router.message(F.text, Shipping.address)
+@router.message(F.text, state=Shipping.address)
 async def ask_customers_address(message: Message, state: FSMContext):
     customer_address = message.text
     await state.update_data(address=customer_address)
@@ -133,7 +133,7 @@ async def ask_customers_address(message: Message, state: FSMContext):
     await state.update_data(order_date=order_date_msk)
 
     await message.answer('Ваша заявка отправлена на модерацию. Большое спасибо за заказ!\n'
-                         'Наши модераторы свяжутся с Вами для уточнения деталей заказа и оплаты')
+                         'Наши модераторы свяжутся с Вами для уточнения деталей заказа и пришлют реквизиты для оплаты.')
     data = await state.get_data()
     await fill_shipping(data)
 
