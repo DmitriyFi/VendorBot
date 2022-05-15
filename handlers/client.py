@@ -8,7 +8,7 @@ from aiogram.dispatcher.filters import Command, Text
 from filters.chat_type import ChatTypeFilter
 from misc.functions import delete_message
 from keyboards.reply import main_menu_keyboard, more_items_keyboard
-from models.database import get_store, choose_item, fill_data_order, fill_shipping
+from models.database import get_store, choose_item, fill_data_order, fill_shipping, get_order_processed
 from misc.states import Purchase, Shipping
 
 from pytz import timezone
@@ -47,6 +47,7 @@ async def cmd_stuff(message: Message):
 async def cancel_purchase(message: Message, state: FSMContext):
     await message.answer('[INFO] Покупка отменена')
     await state.clear()
+    await get_order_processed(message.chat.id)
 
 
 # Ловим выбор пользователя и запускаем машину состояний
@@ -81,9 +82,8 @@ async def ask_quantity_items(message: Message, state: FSMContext):
             await state.set_state(Purchase.count)
     except Exception as ex:
         print(ex)
-        data = await state.get_data()
-        await fill_data_order(data=data)
-        await state.set_state(Purchase.order_id)
+        await message.answer('Введите целое положительное число\nили нажмите -> /cancel')
+        await state.set_state(Purchase.count)
 
 
 @router.message(Text(text='Нет'), state=Purchase.order_id)

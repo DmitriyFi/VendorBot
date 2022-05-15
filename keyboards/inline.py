@@ -34,13 +34,3 @@ def moderator_confirm_cancel_keyboard():
     )
     builder.adjust(1)
     return builder.as_markup()
-
-
-def _buy(photo):
-    num = photo
-    builder = InlineKeyboardBuilder()
-    builder.button(
-        text='Wanna buy it!', callback_data=BuyerCallbackFactory(id=num)
-    )
-    builder.adjust(1)
-    return builder.as_markup()

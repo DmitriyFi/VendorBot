@@ -1,5 +1,6 @@
 import sqlite3 as sq
 from aiogram.utils.keyboard import InlineKeyboardMarkup, InlineKeyboardButton
+import collections
 
 
 async def db_start(name):
@@ -29,7 +30,6 @@ async def db_start(name):
         '(order_id INTEGER NOT NULL, '
         'product_id INTEGER NOT NULL, '
         'count INTEGER NOT NULL, '
-        # 'PRIMARY KEY("order_id","product_id"),'
         'FOREIGN KEY (product_id) REFERENCES products (id),'
         'FOREIGN KEY (order_id) REFERENCES orders (id));'
     )
@@ -93,40 +93,35 @@ async def choose_item(data):
 
 
 async def get_order(message):
-    for item_data in cur.execute(
-            '''SELECT orders.order_date, orders.id, orders.user_name, orders.phone, orders.address, products.name,
-            products.photo, products.price, order_products."count" FROM orders
+    data = cur.execute(
+            '''SELECT orders.id, products.name, order_products."count" FROM orders
             INNER JOIN order_products ON order_products.order_id = orders.id
-            INNER JOIN products ON product_id = products.id'''
-    ).fetchall():
-        order_date = item_data[0]
-        tg_id = item_data[1]
-        customer_name = item_data[2]
-        customer_phone = item_data[3]
-        customer_address = item_data[4]
-        product_name = item_data[5]
-        product_photo = item_data[6]
-        product_price = item_data[7]
-        count = item_data[8]
+            INNER JOIN products ON product_id = products.id''').fetchall()
+
+    output = dict()
+
+    for user_id, product_name, product_count in data:
+        if not output.get(user_id):
+            output[user_id] = collections.defaultdict(int)
+        output[user_id][product_name] += product_count
+
+    for i in output:
+        tg_id = i
+        names = list(output.get(tg_id))
+        amount = list(output.get(i).values())
+        text = f'[INFO] Новый заказ от <a href="tg://user?id={tg_id}">пользователя</a>:\n' \
+               f'{names}\n в количестве:\n{amount} соответственно'
 
         markup = InlineKeyboardMarkup(
             inline_keyboard=[
                 [InlineKeyboardButton(
-                    text='Process',
+                    text='Details',
                     callback_data=f'get:' + str(tg_id)
                 )]
             ]
         )
 
-        await message.answer_photo(photo=product_photo,
-                                   caption=f'{order_date} [msk]\n\n'
-                                           f'<a href="tg://user?id={tg_id}">{customer_name}</a>\n'
-                                           f'Контактный телефон: {customer_phone}\n'
-                                           f'Адрес доставки: {customer_address}\n\n'
-                                           f'Заказал:\n\n'
-                                           f'"{product_name}" - {count} шт.\n'
-                                           f'на общую стоимость {int(product_price) * count}', reply_markup=markup)
-
+        await message.answer(text, reply_markup=markup)
 
 
 async def delete_item(data):
@@ -138,6 +133,13 @@ async def get_order_processed(data):
     cur.execute('''DELETE FROM order_products WHERE order_id == ?''', (data,))
     cur.execute('''DELETE FROM orders WHERE id == ?''', (data,))
     base.commit()
+
+
+async def get_details(data):
+    return cur.execute('''SELECT orders.order_date, orders.id, orders.user_name, orders.phone, orders.address 
+                       FROM orders INNER JOIN order_products ON order_products.order_id = orders.id
+                                   INNER JOIN products ON product_id = products.id 
+                                   WHERE orders.id == ? GROUP BY orders.id''', (data,)).fetchall()
 
 
 async def has_already_ordered():

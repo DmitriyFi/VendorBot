@@ -8,7 +8,8 @@ from filters.admin import AdminFilter
 from filters.chat_type import ChatTypeFilter
 from keyboards.inline import ModerateCallbackFactory, moderator_keyboard, moderator_confirm_cancel_keyboard
 from misc.states import NewItem
-from models.database import fill_store, get_order, get_store2, delete_item, get_order_processed, has_already_ordered
+from models.database import fill_store, get_order, get_store2, delete_item, get_details, has_already_ordered, \
+    get_order_processed
 
 router = Router()
 router.message.filter(AdminFilter())
@@ -18,8 +19,8 @@ router.message.filter(AdminFilter())
 async def admin_cmd_start(message: Message):
     name = message.from_user.full_name
     await message.answer(f'Привет, {name}!\n'
-                         f'Чтобы активировать панель модерации нажми /moder\n'
-                         f'Для проверки активных заказов нажми /order')
+                         f'Активировать панель модерации: /moder\n'
+                         f'Проверить активные заказы: /order')
 
 
 @router.message(ChatTypeFilter(chat_type=['private']), Command(commands=['moder'], state='*'))
@@ -75,11 +76,8 @@ async def admin_adds_photo(message: Message, state: FSMContext):
     photo = message.photo[-1].file_id
     await state.update_data(photo=photo)
 
-    await message.answer_photo(
-        photo=photo,
-        caption='Вас устраивает фото?\n\n'
-                'выйти без изменений /cancel',
-        reply_markup=moderator_confirm_cancel_keyboard())
+    await message.answer_photo(photo=photo, caption='Вас устраивает фото?\n\nвыйти без изменений /cancel',
+                               reply_markup=moderator_confirm_cancel_keyboard())
 
 
 @router.callback_query(ModerateCallbackFactory.filter(F.action == 'change'), state=NewItem.photo)
@@ -185,10 +183,33 @@ async def price_confirm(callback: CallbackQuery, state: FSMContext):
     await state.clear()
 
 
-@router.callback_query(lambda x: x.data and x.data.startswith('get:'))
-async def admin_delete_item(callback: CallbackQuery):
-    await get_order_processed(callback.data.replace('get:', ''))
+@router.callback_query(lambda x: x.data and x.data.startswith('proc:'))
+async def admin_processed_order(callback: CallbackQuery):
+    await get_order_processed(callback.data.replace('proc:', ''))
     await callback.answer(text=f'Все заказы от этого пользователя обработаны.', show_alert=True)
+
+
+@router.callback_query(lambda x: x.data and x.data.startswith('get:'))
+async def admin_more_info(callback: CallbackQuery):
+    res = await get_details(callback.data.replace('get:', ''))
+    date, tg_id, name, phone, address = res[0][0], res[0][1], res[0][2], res[0][3], res[0][4]
+
+    text = f'Заказ от <u><b>{date}</b></u>\n' \
+           f'Покупатель представился как:\n<b>{name}</b>\n' \
+           f'Заказ сделан со <a href="tg://user?id={tg_id}">[страницы]</a>\n' \
+           f'Адрес доcтавки: <b>{address}</b>\n' \
+           f'Контактный телефон: <b>{phone}</b>'
+
+    markup = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(
+                text='Process',
+                callback_data=f'proc:' + str(tg_id)
+            )]
+        ]
+    )
+
+    await callback.message.answer(text=text, reply_markup=markup)
 
 
 @router.message(ChatTypeFilter(chat_type=['private']), Command(commands=['order']))
@@ -198,5 +219,4 @@ async def admin_gets_order(message: Message):
     if not await has_already_ordered():
         await message.answer('Новых заказов пока нет.')
     else:
-        await message.answer('Обратите внимание, что при нажатии на кнопку "Process" обработаются сразу все заказы '
-                             'от одного и того же пользователя')
+        await message.answer('Нажмите на кнопку "Details", чтобы получить подробную информацию по каждому заказу')
