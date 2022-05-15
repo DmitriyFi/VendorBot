@@ -8,7 +8,7 @@ from filters.admin import AdminFilter
 from filters.chat_type import ChatTypeFilter
 from keyboards.inline import ModerateCallbackFactory, moderator_keyboard, moderator_confirm_cancel_keyboard
 from misc.states import NewItem
-from models.database import fill_store, get_order, get_store2, delete_item
+from models.database import fill_store, get_order, get_store2, delete_item, get_order_processed, has_already_ordered
 
 router = Router()
 router.message.filter(AdminFilter())
@@ -185,6 +185,18 @@ async def price_confirm(callback: CallbackQuery, state: FSMContext):
     await state.clear()
 
 
+@router.callback_query(lambda x: x.data and x.data.startswith('get:'))
+async def admin_delete_item(callback: CallbackQuery):
+    await get_order_processed(callback.data.replace('get:', ''))
+    await callback.answer(text=f'Все заказы от этого пользователя обработаны.', show_alert=True)
+
+
 @router.message(ChatTypeFilter(chat_type=['private']), Command(commands=['order']))
 async def admin_gets_order(message: Message):
     await get_order(message)
+
+    if not await has_already_ordered():
+        await message.answer('Новых заказов пока нет.')
+    else:
+        await message.answer('Обратите внимание, что при нажатии на кнопку "Process" обработаются сразу все заказы '
+                             'от одного и того же пользователя')

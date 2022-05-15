@@ -38,8 +38,7 @@ async def cmd_help(message: Message):
 
 
 @router.message(Text(text='Stuff'))
-async def cmd_stuff(message: Message, state: FSMContext):
-    await state.set_state(Purchase.order_id)
+async def cmd_stuff(message: Message):
     await get_store(message)
 
 

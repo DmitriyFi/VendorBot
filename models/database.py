@@ -12,7 +12,7 @@ async def db_start(name):
         'photo TEXT NOT NULL , '
         'name TEXT NOT NULL , '
         'description TEXT NOT NULL, '
-        'price TEXT NOT NULL,'
+        'price TEXT NOT NULL, '
         'PRIMARY KEY("id" AUTOINCREMENT));'
     )
     cur.execute(
@@ -21,7 +21,7 @@ async def db_start(name):
         'user_name TEXT NOT NULL, '
         'phone TEXT, '
         'address TEXT NOT NULL, '
-        'order_date TEXT NOT NULL,'
+        'order_date TEXT NOT NULL, '
         'PRIMARY KEY("id"));'
     )
     cur.execute(
@@ -29,7 +29,7 @@ async def db_start(name):
         '(order_id INTEGER NOT NULL, '
         'product_id INTEGER NOT NULL, '
         'count INTEGER NOT NULL, '
-        'PRIMARY KEY("order_id","product_id"),'
+        # 'PRIMARY KEY("order_id","product_id"),'
         'FOREIGN KEY (product_id) REFERENCES products (id),'
         'FOREIGN KEY (order_id) REFERENCES orders (id));'
     )
@@ -67,6 +67,12 @@ async def get_store(message):
             ]
         )
 
+        for _ordered_users in await has_already_ordered():
+            new_user = message.chat.id
+            if new_user in _ordered_users:
+                await message.answer('Вы уже заказывали. Дождитесь пока Ваш предыдущий заказ обработают!')
+                return
+
         await message.answer_photo(photo=item_photo,
                                    caption=f'Name: {item_name}\n'
                                            f'Description: {item_description}\n'
@@ -88,7 +94,7 @@ async def choose_item(data):
 
 async def get_order(message):
     for item_data in cur.execute(
-            '''SELECT orders.order_date, orders.id, orders.user_name, orders.phone, orders.address, products.name, 
+            '''SELECT orders.order_date, orders.id, orders.user_name, orders.phone, orders.address, products.name,
             products.photo, products.price, order_products."count" FROM orders
             INNER JOIN order_products ON order_products.order_id = orders.id
             INNER JOIN products ON product_id = products.id'''
@@ -103,6 +109,15 @@ async def get_order(message):
         product_price = item_data[7]
         count = item_data[8]
 
+        markup = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(
+                    text='Process',
+                    callback_data=f'get:' + str(tg_id)
+                )]
+            ]
+        )
+
         await message.answer_photo(photo=product_photo,
                                    caption=f'{order_date} [msk]\n\n'
                                            f'<a href="tg://user?id={tg_id}">{customer_name}</a>\n'
@@ -110,9 +125,21 @@ async def get_order(message):
                                            f'Адрес доставки: {customer_address}\n\n'
                                            f'Заказал:\n\n'
                                            f'"{product_name}" - {count} шт.\n'
-                                           f'на общую стоимость {int(product_price) * count}')
+                                           f'на общую стоимость {int(product_price) * count}', reply_markup=markup)
+
 
 
 async def delete_item(data):
     cur.execute('''DELETE FROM products WHERE name == ?''', (data,))
     base.commit()
+
+
+async def get_order_processed(data):
+    cur.execute('''DELETE FROM order_products WHERE order_id == ?''', (data,))
+    cur.execute('''DELETE FROM orders WHERE id == ?''', (data,))
+    base.commit()
+
+
+async def has_already_ordered():
+    users_are_waiting = cur.execute('''SELECT orders.id FROM orders''').fetchall()
+    return users_are_waiting
